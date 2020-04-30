@@ -6,7 +6,7 @@ If you are working with this plugin and aren't familiar with gatsby-transformer-
 
 ## Install
 
-    $ yarn add gatsby-remark-ample gatsby-transformer-remark gatsby-gatsby-remark-relative-images gatsby-remark-images gatsby-transformer-sharp gatsby-plugin-sharp
+    $ yarn add ample/gatsby-remark-ample gatsby-transformer-remark gatsby-gatsby-remark-relative-images gatsby-remark-images gatsby-transformer-sharp gatsby-plugin-sharp
 
 ## How to use
 
