@@ -5,7 +5,7 @@ describe("getOptions", () => {
   it("has sensible defaults", () => {
     expect(getOptions()).toEqual({
       contentSrc: "src/content/",
-      imageExtensions: [".jpg", ".png"],
+      imageExtensions: [".jpg", ".jpeg", ".png"],
       imageSuffix: "_src",
       imageSrc: path.join(__dirname, "../../../static"),
       markdownSuffix: "_md",

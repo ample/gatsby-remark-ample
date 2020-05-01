@@ -53,7 +53,7 @@ plugins: [
     resolve: `gatsby-remark-ample`
     options: {
       contentSrc: "src/content/",
-      imageExtensions: [".jpg", ".png"],
+      imageExtensions: [".jpg", ".jpeg", ".png"],
       imageSrc: path.join(__dirname, "./static"),
       imageSuffix: "_src",
       markdownSuffix: "_md",
