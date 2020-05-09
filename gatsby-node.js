@@ -65,8 +65,8 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
       absoluteFilePath: node.fileAbsolutePath,
       contentSrc: args.contentSrc
     }),
-    // All non-empty properties on the MarkdownRemark node.
-    ...lodash.omitBy(node.frontmatter, lodash.isEmpty)
+    // Bring in frontmatter from MarkdownRemark node.
+    ...node.frontmatter
   }
 
   // Loop through and process each key-value in the frontmatter.
