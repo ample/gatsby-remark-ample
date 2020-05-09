@@ -9,6 +9,7 @@ module.exports = (overrides = {}) => {
     imageSuffix: "_src",
     markdownSuffix: "_md",
     modelField: "model",
+    models: [],
     seoField: "seo"
   }
 

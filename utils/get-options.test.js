@@ -10,6 +10,7 @@ describe("getOptions", () => {
       imageSrc: path.join(__dirname, "../../../static"),
       markdownSuffix: "_md",
       modelField: "model",
+      models: [],
       seoField: "seo"
     })
   })
@@ -20,6 +21,7 @@ describe("getOptions", () => {
     expect(getOptions({ imageSrc: "./uploads" }).imageSrc).toEqual("./uploads")
     expect(getOptions({ markdownSuffix: "__m__" }).markdownSuffix).toEqual("__m__")
     expect(getOptions({ modelField: "_tmpl" }).modelField).toEqual("_tmpl")
+    expect(getOptions({ models: ["Page", "Post"] }).models).toEqual(["Page", "Post"])
     expect(getOptions({ seoField: "__s__" }).seoField).toEqual("__s__")
   })
   it("adds a trailing slash to contentSrc", () => {
