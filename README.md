@@ -1,8 +1,12 @@
 # gatsby-remark-ample
 
-gatsby-remark-ample is a Gatsby plugin that sits on top of [gatsby-transformer-remark](https://www.gatsbyjs.org/packages/gatsby-transformer-remark/) to provide a few frills to help us build Gatsby sites more efficiently.
+gatsby-remark-ample is a Gatsby plugin that sits on top of [gatsby-transformer-remark](https://www.gatsbyjs.org/packages/gatsby-transformer-remark/) to provide a few frills to help [Ample](https://www.helloample.com/) developers build Gatsby sites more efficiently.
 
-If you are working with this plugin and aren't familiar with gatsby-transformer-remark, that's the place to start. Otherwise, the sections below will walk through usage and features.
+If you are working with this plugin and aren't familiar with the gatsby-transformer-remark plugin, that's the place to start. Otherwise, the sections below will walk through usage and features.
+
+There is a working example of this plugin in our Gatsby starer, [gatsby-starter-ample](https://github.com/ample/gatsby-starter-ample).
+
+**WARNING! Lots of opinions here!** This plugin is intentionally opinionated. It is specific to the way in which Ample's developers build sites using Gatsby. Our goal is that as we strengthen this plugin we also make it more flexible and therefore useful to the Gatsby community.
 
 ## Install
 
@@ -14,54 +18,57 @@ If you are working with this plugin and aren't familiar with gatsby-transformer-
 // In your gatsby-config.js
 const path = require('path')
 
-plugins: [
-  {
-    resolve: "gatsby-source-filesystem",
-    options: {
-      name: "uploads",
-      // Set to where your images are uploaded from the CMS.
-      path: `${__dirname}/static/uploads`
-    }
-  },
-  {
-    resolve: `gatsby-source-filesystem`,
-    options: {
-      name: `content`,
-      // Set to the source directory for your local markdown files.
-      path: `${__dirname}/src/content`
-    }
-  },
-  `gatsby-transformer-sharp`,
-  `gatsby-plugin-sharp`,
-  {
-    resolve: `gatsby-transformer-remark`,
-    options: {
-      plugins: [
-        {
-          resolve: `gatsby-remark-relative-images`
-        },
-        {
-          resolve: `gatsby-remark-images`,
-          options: {
-            maxWidth: 1440
+module.exports = {
+  plugins: [
+    {
+      resolve: "gatsby-source-filesystem",
+      options: {
+        name: "uploads",
+        // Set to where your images are uploaded from the CMS.
+        path: `${__dirname}/static/uploads`
+      }
+    },
+    {
+      resolve: `gatsby-source-filesystem`,
+      options: {
+        name: `content`,
+        // Set to the source directory for your local markdown files.
+        path: `${__dirname}/src/content`
+      }
+    },
+    `gatsby-transformer-sharp`,
+    `gatsby-plugin-sharp`,
+    {
+      resolve: `gatsby-transformer-remark`,
+      options: {
+        plugins: [
+          {
+            resolve: `gatsby-remark-relative-images`
+          },
+          {
+            resolve: `gatsby-remark-images`,
+            options: {
+              maxWidth: 1440
+            }
           }
-        }
-      ]
+        ]
+      }
+    },
+    {
+      resolve: `gatsby-remark-ample`
+      options: {
+        contentSrc: "src/content/",
+        imageExtensions: [".jpg", ".jpeg", ".png"],
+        imageSrc: path.join(__dirname, "./static"),
+        imageSuffix: "_src",
+        markdownSuffix: "_md",
+        models: [],
+        modelField: "model",
+        seoField: "seo"
+      }
     }
-  },
-  {
-    resolve: `gatsby-remark-ample`
-    options: {
-      contentSrc: "src/content/",
-      imageExtensions: [".jpg", ".jpeg", ".png"],
-      imageSrc: path.join(__dirname, "./static"),
-      imageSuffix: "_src",
-      markdownSuffix: "_md",
-      modelField: "model",
-      seoField: "seo"
-    }
-  }
-]
+  ]
+}
 ```
 
 ### Options
@@ -72,11 +79,14 @@ plugins: [
 - `imageSuffix`: The unique suffix on keys that should be processed as images.
 - `markdownSuffix`: The unique suffix on keys that should be processed as markdown.
 - `modelField`: The unique top-level property key that should be used as explicit instruction on which query the file should be available.
+- `models`: The names of the models whose schema we want to explicitly define. (Note: Today we're only defining `id`, `seo`, `slug`, and `slugField`, but the plan is to define the entire schema.) This determines whether a `processed_frontmatter` field is created on the `MarkdownRemark` node (more on this below).
 - `seoField`: The unique top-level property key that houses SEO data.
 
 ## How it works
 
-This is built on top of gatsby-transformer-remark. It's meant provide backwards compatibility to projects that were exclusively using gatsby-transformer-remark, and to serve only as a utility on top of the remark plugin.
+This is built on top of gatsby-transformer-remark. It takes the frontmatter from a `MarkdownRemark` node and creates a child of that node from the frontmatter, after further processing those properties and adding a few others.
+
+It also then stores that transformed frontmatter on the `MarkdownRemark` node at `fields.processed_frontmatter` **if the matching model was passed to the plugin** (see `models` option above).
 
 There are five concepts that we'll walk through to explain how this is working:
 
@@ -92,9 +102,11 @@ One of the key benefits of this plugin is that it groups local content files int
 
 1. Makes querying data by type much simpler (no filters required).
 2. Removes properties that are irrelevant to a group of objects.
-3. Enables markdown and image processing in conjunction with Gatsby's development server (i.e. solves a bug we were seeing before using this plugin).
+3. Adds markdown, image, and SEO processing.
 
-The way structured data works is that it looks for a field at the top level of the frontmatter in nodes processed as MarkdownRemark. (This is the `modelField` option.) If it finds the field, it will create a new node of that type, maintaining a relationship to the MarkdownRemark node and its parent, the File node.
+The way structured data works is that it looks for a field at the top level of the frontmatter in nodes processed as `MarkdownRemark`. (This is the `modelField` option.) If it finds the field, it will create a new node of that type, maintaining a relationship to the `MarkdownRemark` node.
+
+### Creating structured child nodes
 
 Say there's a file in `src/content/pages/index.md` that looks like this:
 
@@ -107,24 +119,72 @@ model: Page
 Hello world ...
 ```
 
-The node could be queried through `allMarkdownRemarkPage` or `markdownRemarkPage` because `Page` was the value of the `model` field. (`model` is the default model field key.)
+The node could be queried through `allPage` or `page` because `Page` was the value of the `model` field. (`model` is the default model field key.)
 
 ```graphql
 {
-  markdownRemarkPage {
-    html
-    frontmatter {
+  page {
+    title
+  }
+}
+```
+
+This node is a _child_ of the `MarkdownRemark` node and only brings the processed frontmatter with it. For example, `html` would not work in the example above, as `html` is only accessible through the parent `MarkdownRemark` node.
+
+### Accessing structured nodes through the `MarkdownRemark` node
+
+If you want to work with fields from the `MarkdownRemark` node _and_ the new structured node, there are two ways to go about it.
+
+The first way is to access the child node following Gatsby's parent-child relationship convention:
+
+```graphql
+{
+  markdownRemark {
+    childPage {
       title
     }
   }
 }
 ```
 
-Notice that we maintain the query structure of gatsby-transformer-remark, making `html` and `frontmatter` the two methods to get to data processed by this plugin.
+The second way requires additional configuration using the `models` option. If you pass the appropriate model through to the plugin, the child will also be accessible through a custom `processed_frontmatter` field.
 
-### New Fields
+To set that up, first make sure the model is being passed into the plugin as an option:
 
-In addition to gatsby-transformer-remark fields, this plugin adds some logical fields to support the way we work, including:
+```js
+// in gatsby-config.js
+module.exports = {
+  plugins: [
+    // ...
+    {
+      resolve: `gatsby-remark-ample`,
+      options: {
+        models: ["Page"]
+      }
+    }
+  ]
+}
+```
+
+Then the page will be available through `fields.processed_frontmatter` as its type:
+
+```graphql
+{
+  markdownRemark {
+    fields {
+      processed_frontmatter {
+        ... on Page {
+          title
+        }
+      }
+    }
+  }
+}
+```
+
+### Added frontmatter fields
+
+In addition to the original frontmatter fields and the newly processed fields, this plugin adds some logical fields to support the way we work, including:
 
 - `slug`: The filename without the extension.
 - `slugPath`: The relative path with the file slug from the segmented content directory.
@@ -142,7 +202,7 @@ And add those fields to the query:
 
 ```graphql
 {
-  markdownRemarkPage {
+  page {
     slug
     slugPath
   }
@@ -153,8 +213,6 @@ The results would be:
 
 - `slug`: `company`
 - `slugPath`: `about/company`
-
-Note that in providing these new fields we've also removed fields we don't use, such as `fileAbsolutePath`. If necessary, you can get to those fields through the parent node, or you could contribute to this plugin to add support.
 
 ### Markdown Processing
 
@@ -177,9 +235,22 @@ When it comes time to write the query, `sidebar_md` will return the original str
 
 ```graphql
 {
-  markdownRemarkPage {
+  page {
     sidebar_md # Returns original markdown string
     sidebar # Returns HTML string
+  }
+}
+```
+
+Note that the processed HTML field is not available on the `MarkdownRemark` node:
+
+```graphql
+{
+  markdownRemark {
+    frontmatter {
+      sidebar_md
+      sidebar # Does not exist!
+    }
   }
 }
 ```
@@ -192,9 +263,9 @@ Image processing works almost identically to markdown processing, with a few exc
 - It will ignore image paths that don't end in the accepted extensions whitelist. This is so we don't try to process images we can't process, like SVG files.
 - It will only process values that start with the proper path separator (e.g. `/`) character, indicating that it is a path to a file.
 
-This is highly opinionated to work with content management systems that write images to the file system, such as NetlifyCMS or Forestry.
+This is highly opinionated to work with content management systems that write images to the file system, such as [NetlifyCMS](https://www.netlifycms.org/) or [Forestry](https://www.forestry.io/).
 
-Because of that, this process is involved, optionated, and a little goofy. So let's look at how this transformation works:
+Because of that, this process is involved, opinionated, and a little goofy. So let's look at how this transformation works:
 
 First, this plugin scans frontmatter for keys that end in the `imageSuffix` (default: `_src`). When it finds one, if the value is a string that ends in an acceptable extension, it next identifies the relative path from the markdown file to the physical image file. (That's where `imageSrc` comes in handy.) If all of these items come together, the plugin then writes the value to a key without the suffix.
 
@@ -229,7 +300,7 @@ The last feature this plugin brings is support for SEO. It assumes that there is
 
 Like the other features here, it ties into our other processes and is extremely opinionated. There are a lot of inner workings to make SEO work right out of the gate, and this adds to that process.
 
-When this plugin finds the appropriate field, it creates a child node for the node we're creating. We do that so that we can use a single shared fragment through the project for querying SEO values.
+When this plugin finds the appropriate field, it creates a node of type `SeoMeta` as a child of our structured node. We do that so that we can use a single shared fragment through the project for querying SEO values.
 
 Consider our example file with an `seo` field:
 
@@ -246,13 +317,9 @@ Now we can query like so:
 
 ```graphql
 {
-  markdownRemarkPage {
-    childSeoMeta {
-      data {
-        title
-        description
-        image_src
-      }
+  page {
+    seo {
+      title
     }
   }
 }
@@ -270,7 +337,19 @@ And then simplify your queries throughout the project:
 
 ```graphql
 {
-  markdownRemarkPage {
+  page {
+    seo {
+      ...SEO
+    }
+  }
+}
+```
+
+The intention here was to not remove the original field reference to the SEO data. However, you may also reference the SEO data through Gatsby's parent-child relationship convention:
+
+```graphql
+{
+  page {
     childSeoMeta {
       ...SEO
     }
@@ -278,19 +357,6 @@ And then simplify your queries throughout the project:
 }
 ```
 
-Note that the `seo` field does not get removed from the frontmatter. In other words, this will still work:
+## License
 
-```graphql
-{
-  markdownRemarkPage {
-    frontmatter {
-      seo {
-        title
-        # ...
-      }
-    }
-  }
-}
-```
-
-But you won't be able to use the fragment when looking for SEO in frontmatter because Gatsby infers those type names, and our types are specific to the model field.
+This project is distributed under the [MIT License](license.md).
