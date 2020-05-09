@@ -1,20 +1,9 @@
-const deepForEach = require("deep-for-each")
 const lodash = require("lodash")
 const path = require("path")
 
-const getKeyType = require("./utils/get-key-type")
 const getOptions = require("./utils/get-options")
 const getPermalink = require("./utils/get-permalink")
-const processImage = require("./utils/process-image")
-const processMarkdown = require("./utils/process-markdown")
-
-// TODO: Copy relevant frontmatter into top-level key
-// TODO: Add slug fields
-// TODO: Explicitly set type from schema config
-// TODO: Use schema for processing and remove suffix
-// TODO: Update options
-// TODO: Fix tests
-// TODO: Update documentation
+const processFrontmatter = require("./utils/process-frontmatter")
 
 exports.createSchemaCustomization = ({ actions }) => {
   const { createTypes } = actions
@@ -28,10 +17,12 @@ exports.createSchemaCustomization = ({ actions }) => {
 
     interface ModelFrontmatter {
       id: ID!
+      slug: String
+      slugPath: String
     }
 
     type MarkdownRemarkFields implements Node {
-      frontmatter: ModelFrontmatter
+      processed_frontmatter: ModelFrontmatter
     }
 
     type SeoMeta implements Node {
@@ -59,14 +50,13 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
   // comprehensive object of options.
   const args = getOptions(options)
 
+  // Extract the content type so we can set the type of child nodes, which
+  // translate to the new frontmatter field, too.
   const model = lodash.get(node, `frontmatter.${args.modelField}`)
-
-  // Reference we use to know whether or not to create a child SEO node.
-  let seoData
 
   // Set the initial state of the frontmatter to be processed as the slug and
   // slugPath, along with the frontmatter from the MarkdownRemark node.
-  let frontmatter = {
+  const initFrontmatter = {
     // slug is the filename without the extension.
     slug: path.basename(node.fileAbsolutePath, path.extname(node.fileAbsolutePath)),
     // slugPath is the path to the file without the extension and the grouping
@@ -79,42 +69,11 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
     ...lodash.omitBy(node.frontmatter, lodash.isEmpty)
   }
 
-  // Loop through each key-value pair in the frontmatter.
-  deepForEach(frontmatter, (value, key, subject, keyPath) => {
-    // Get type of the node. Most will be "default" and are simply passed
-    // through to the new node. Others get processed more specifically to their
-    // type.
-    const keyType = getKeyType({ keyPath: keyPath, options: args, value: value })
-    switch (keyType) {
-      // SEO keys simply set the seoData variable and are processed after the
-      // new node is created.
-      case "seo":
-        seoData = value
-        break
-      // Markdown keys are converted to HTML and stored as a new key without the
-      // suffix.
-      case "md": {
-        const newKeyPath = lodash.trimEnd(keyPath, args.markdownSuffix)
-        const newValue = processMarkdown(value)
-        if (newValue) lodash.set(frontmatter, newKeyPath, newValue)
-        break
-      }
-      // Image keys are converted to a relative path from the markdown file to
-      // the image, and stored as a new key without the suffix.
-      case "img": {
-        const newKeyPath = lodash.trimEnd(keyPath, args.imageSuffix)
-        const newValue = processImage({
-          absoluteFilePath: node.fileAbsolutePath,
-          imageSrcDir: args.imageSrc,
-          value: value
-        })
-        if (newValue) lodash.set(frontmatter, newKeyPath, newValue)
-        break
-      }
-    }
-    // If the key has a type (some keys are ignored), then we pass it through to
-    // the new node.
-    if (keyType) lodash.set(frontmatter, keyPath, value)
+  // Loop through and process each key-value in the frontmatter.
+  let { frontmatter, seoData } = processFrontmatter({
+    frontmatter: initFrontmatter,
+    options: args,
+    node: node
   })
 
   // Initialize a new node as a child of the MarkdownRemark node.
@@ -130,22 +89,32 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
     ...frontmatter
   }
 
-  // Process an SEO node if the new node has SEO data attached to it.
-  const seoNode = seoData
-    ? {
-        id: createNodeId(`${newNode.id} - SEO`),
-        children: [],
-        parent: newNode.id,
-        internal: {
-          contentDigest: createContentDigest(seoData),
-          type: `SeoMeta`
-        },
-        ...seoData
-      }
-    : null
+  // Define outside the conditional so we can use it below for creating a
+  // parent-child relationship, if necessary.
+  let seoNode = undefined
 
-  // Create the SEO node, then set the new node's frontmatter to the new SEO node.
-  if (seoNode) {
+  // Create the SEO node if SEO there was SEO data in the frontmatter.
+  if (seoData) {
+    // Process SEO data as though it were frontmatter (to transform images and
+    // markdown). In this case, ignore the seoData returned and extract only the
+    // processed frontmatter.
+    seoData = processFrontmatter({
+      frontmatter: seoData,
+      options: args,
+      node: node
+    }).frontmatter
+    // Process an SEO node if the new node has SEO data attached to it.
+    seoNode = {
+      id: createNodeId(`${newNode.id} - SEO`),
+      children: [],
+      parent: newNode.id,
+      internal: {
+        contentDigest: createContentDigest(seoData),
+        type: `SeoMeta`
+      },
+      ...seoData
+    }
+    // Create the SEO node, then set the new node's frontmatter to the new SEO node.
     actions.createNode(seoNode)
     lodash.set(newNode, "seo", seoNode)
   }
@@ -154,6 +123,7 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
   // childMarkdownRemark to get to html and other useful attributes.
   actions.createNode(newNode)
   actions.createParentChildLink({ parent: node, child: newNode })
+
   // Create the parent-child relationship between the new node and the SEO node.
   if (seoNode) actions.createParentChildLink({ parent: node, child: seoNode })
 
@@ -161,7 +131,7 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
   // which will make it available at node.fields.frontmatter.
   actions.createNodeField({
     node,
-    name: "frontmatter",
+    name: "processed_frontmatter",
     value: newNode
   })
 
