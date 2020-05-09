@@ -5,16 +5,13 @@ const getOptions = require("./utils/get-options")
 const getPermalink = require("./utils/get-permalink")
 const processFrontmatter = require("./utils/process-frontmatter")
 
-exports.createSchemaCustomization = ({ actions }) => {
-  const { createTypes } = actions
+exports.createSchemaCustomization = ({ actions }, options) => {
+  // Combine options passed into the plugin with the sensible defaults for a
+  // comprehensive object of options.
+  const args = getOptions(options)
 
-  const models = ["Page", "Redirect", "AdminReferences", "AdminSeo"]
-
+  // Set the predictable type definitions.
   let typeDefs = `
-    type MarkdownRemarkFrontmatterSectionsComponents implements Node {
-      body: String
-    }
-
     interface ModelFrontmatter {
       id: ID!
       slug: String
@@ -30,7 +27,10 @@ exports.createSchemaCustomization = ({ actions }) => {
     }
   `
 
-  for (let model of models) {
+  // Loop through the models passed into the plugin to explicitly define type
+  // definitions. (This is the basis for building out predictable schemas, which
+  // is not yet in place.)
+  for (let model of args.models) {
     typeDefs += `
       type ${model} implements Node & ModelFrontmatter {
         id: ID!
@@ -39,7 +39,7 @@ exports.createSchemaCustomization = ({ actions }) => {
     `
   }
 
-  createTypes(typeDefs)
+  actions.createTypes(typeDefs)
 }
 
 exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, options) => {
@@ -128,12 +128,15 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
   if (seoNode) actions.createParentChildLink({ parent: node, child: seoNode })
 
   // Add the transformed frontmatter as a field on the MarkdownRemark node,
-  // which will make it available at node.fields.frontmatter.
-  actions.createNodeField({
-    node,
-    name: "processed_frontmatter",
-    value: newNode
-  })
+  // which will make it available at node.fields.frontmatter. Note that this
+  // step is skipped if the model wasn't explicitly defined.
+  if (args.models.includes(model)) {
+    actions.createNodeField({
+      node,
+      name: "processed_frontmatter",
+      value: newNode
+    })
+  }
 
   // Return the newly created node.
   return newNode
