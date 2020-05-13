@@ -11,6 +11,7 @@ describe("getOptions", () => {
       markdownSuffix: "_md",
       modelField: "model",
       models: [],
+      projectRoot: path.join(__dirname, "../../../"),
       seoField: "seo"
     })
   })

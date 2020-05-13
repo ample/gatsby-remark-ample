@@ -3,6 +3,7 @@ const path = require("path")
 
 const getOptions = require("./utils/get-options")
 const getPermalink = require("./utils/get-permalink")
+const getFilePath = require("./utils/get-file-path")
 const processFrontmatter = require("./utils/process-frontmatter")
 
 exports.createSchemaCustomization = ({ actions }, options) => {
@@ -16,6 +17,7 @@ exports.createSchemaCustomization = ({ actions }, options) => {
       id: ID!
       slug: String
       slugPath: String
+      filePath: String
     }
 
     type MarkdownRemarkFields implements Node {
@@ -58,8 +60,9 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
   // the type is unknown.
   if (!model) return
 
-  // Set the initial state of the frontmatter to be processed as the slug and
-  // slugPath, along with the frontmatter from the MarkdownRemark node.
+  // Set the initial state of the frontmatter to be processed as the slug,
+  // slugPath, and filePath, along with the frontmatter from the MarkdownRemark
+  // node.
   const initFrontmatter = {
     // slug is the filename without the extension.
     slug: path.basename(node.fileAbsolutePath, path.extname(node.fileAbsolutePath)),
@@ -68,6 +71,11 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
     slugPath: getPermalink({
       absoluteFilePath: node.fileAbsolutePath,
       contentSrc: args.contentSrc
+    }),
+    // filePath is the path to the file, relative to the project root directory
+    filePath: getFilePath({
+      absoluteFilePath: node.fileAbsolutePath,
+      projectRoot: args.projectRoot
     }),
     // Bring in frontmatter from MarkdownRemark node.
     ...node.frontmatter

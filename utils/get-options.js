@@ -10,6 +10,7 @@ module.exports = (overrides = {}) => {
     markdownSuffix: "_md",
     modelField: "model",
     models: [],
+    projectRoot: path.join(__dirname, "../../../"),
     seoField: "seo"
   }
 
