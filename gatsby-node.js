@@ -54,6 +54,10 @@ exports.onCreateNode = ({ node, actions, createNodeId, createContentDigest }, op
   // translate to the new frontmatter field, too.
   const model = lodash.get(node, `frontmatter.${args.modelField}`)
 
+  // If the model was not specified, then don't try to create the node because
+  // the type is unknown.
+  if (!model) return
+
   // Set the initial state of the frontmatter to be processed as the slug and
   // slugPath, along with the frontmatter from the MarkdownRemark node.
   const initFrontmatter = {
