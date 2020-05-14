@@ -9,6 +9,10 @@ describe("getPermalink", () => {
     const result = getPermalink({ absoluteFilePath: absoluteFilePath, contentSrc: contentSrc })
     expect(result).toEqual("test-01/test-02")
   })
+  it("returns the same result when using a relative path as the content source", () => {
+    const result = getPermalink({ absoluteFilePath: absoluteFilePath, contentSrc: "utils" })
+    expect(result).toEqual("test-01/test-02")
+  })
   it("provides the same result when the contentSrc ends with a slash", () => {
     const result = getPermalink({
       absoluteFilePath: absoluteFilePath,

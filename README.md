@@ -64,6 +64,7 @@ module.exports = {
         markdownSuffix: "_md",
         models: [],
         modelField: "model",
+        projectRoot: path.join(__dirname),
         seoField: "seo"
       }
     }
@@ -80,6 +81,7 @@ module.exports = {
 - `markdownSuffix`: The unique suffix on keys that should be processed as markdown.
 - `modelField`: The unique top-level property key that should be used as explicit instruction on which query the file should be available.
 - `models`: The names of the models whose schema we want to explicitly define. (Note: Today we're only defining `id`, `seo`, `slug`, and `slugField`, but the plan is to define the entire schema.) This determines whether a `processed_frontmatter` field is created on the `MarkdownRemark` node (more on this below).
+- `projectRoot`: The root directory of the project. This is the base from which `filePath` is set upon child nodes. As long as you are using this plugin from either the `plugins` directory or the `node_modules` directory, you won't have to mess with this. Otherwise, set it to `path.join(__dirname)`.
 - `seoField`: The unique top-level property key that houses SEO data.
 
 ## How it works
@@ -188,6 +190,7 @@ In addition to the original frontmatter fields and the newly processed fields, t
 
 - `slug`: The filename without the extension.
 - `slugPath`: The relative path with the file slug from the segmented content directory.
+- `filePath`: The relative path of the file from the root of the project. This depends on the `projetRoot` option being the absolute path to the Gatsby project. (More on this below the example.)
 
 Consider the example above, but for a page that lives at `src/content/pages/about/company.md`:
 
@@ -205,6 +208,7 @@ And add those fields to the query:
   page {
     slug
     slugPath
+    filePath
   }
 }
 ```
@@ -213,6 +217,57 @@ The results would be:
 
 - `slug`: `company`
 - `slugPath`: `about/company`
+- `filePath`: `src/content/pages/about/company.md`
+
+#### The Purpose of `filePath`
+
+It may seem like an odd addition to put `filePath` attribute on each of these nodes. This is done to work with services like Forestry that use a file path as a way to association markdown files to one another.
+
+This provides the ability to easily map GraphQL fields across nodes in Gatsby using [the mapping feature](https://www.gatsbyjs.org/docs/gatsby-config/#mapping-node-types).
+
+Say you have a file at `src/content/posts/my-post.md` with this frontmatter:
+
+```md
+---
+title: My Post
+model: Post
+author: src/content/authors/sad-clown.md
+---
+```
+
+And the `author` field points to a file that exists, that is created into an `Author` child node. For example:
+
+```md
+---
+title: Sad Clown
+model: Author
+---
+```
+
+You'd then be able to map the fields together in `gatsby-config.js` like so:
+
+```js
+module.exports = {
+  mapping: {
+    "Post.author": "Author.filePath"
+  },
+  plugins: [
+    // ...
+  ]
+}
+```
+
+Then you would receive the `Author` object as the `author` field on the post in your GraphQL query:
+
+```graphql
+{
+  post {
+    author {
+      title # returns "Sad Clown"
+    }
+  }
+}
+```
 
 ### Markdown Processing
 
